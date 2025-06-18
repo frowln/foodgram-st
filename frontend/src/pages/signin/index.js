@@ -10,16 +10,29 @@ import styles from "./styles.module.css";
 import { useFormWithValidation } from "../../utils";
 import { AuthContext } from "../../contexts";
 import { Redirect } from "react-router-dom";
-import { useContext } from "react";
+import { useContext, useState } from "react";
 import MetaTags from "react-meta-tags";
 
 const SignIn = ({ onSignIn, submitError, setSubmitError }) => {
   const { values, handleChange, errors } = useFormWithValidation();
   const authContext = useContext(AuthContext);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const onChange = (e) => {
     setSubmitError({ submitError: "" });
     handleChange(e);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    onSignIn(values)
+      .catch((err) => {
+        console.error('Form submission error:', err);
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
   };
 
   return (
@@ -36,13 +49,12 @@ const SignIn = ({ onSignIn, submitError, setSubmitError }) => {
         </MetaTags>
         <Form
           className={styles.form}
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSignIn(values);
-          }}
+          onSubmit={handleSubmit}
         >
           <FormTitle>Войти</FormTitle>
-
+          {submitError && submitError.submitError && (
+            <div className={styles.error}>{submitError.submitError}</div>
+          )}
           <Input
             required
             isAuth={true}
@@ -66,8 +78,13 @@ const SignIn = ({ onSignIn, submitError, setSubmitError }) => {
             href="/reset-password"
             title="Забыли пароль?"
           /> */}
-          <Button modifier="style_dark" type="submit" className={styles.button}>
-            Войти
+          <Button 
+            modifier="style_dark" 
+            type="submit" 
+            className={styles.button}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'Вход...' : 'Войти'}
           </Button>
         </Form>
       </Container>

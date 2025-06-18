@@ -1,11 +1,12 @@
 import { Card, Title, Pagination, CardList, Container, Main, CheckboxGroup  } from '../../components'
 import styles from './styles.module.css'
 import { useRecipes } from '../../utils/index.js'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import api from '../../api'
 import MetaTags from 'react-meta-tags'
 
 const HomePage = ({ updateOrders }) => {
+  const [error, setError] = useState(null);
   const {
     recipes,
     setRecipes,
@@ -18,6 +19,7 @@ const HomePage = ({ updateOrders }) => {
   } = useRecipes()
 
   const getRecipes = ({ page = 1 }) => {
+    setError(null);
     api
       .getRecipes({ page })
       .then(res => {
@@ -25,12 +27,15 @@ const HomePage = ({ updateOrders }) => {
         setRecipes(results)
         setRecipesCount(count)
       })
+      .catch(err => {
+        console.error('Error loading recipes:', err);
+        setError('Произошла ошибка при загрузке рецептов. Пожалуйста, попробуйте позже.');
+      });
   }
 
-  useEffect(_ => {
+  useEffect(() => {
     getRecipes({ page: recipesPage })
   }, [recipesPage])
-
 
   return <Main>
     <Container>
@@ -42,7 +47,8 @@ const HomePage = ({ updateOrders }) => {
       <div className={styles.title}>
         <Title title='Рецепты' />
       </div>
-      {recipes.length > 0 && <CardList>
+      {error && <div className={styles.error}>{error}</div>}
+      {!error && recipes.length > 0 && <CardList>
         {recipes.map(card => <Card
           {...card}
           key={card.id}
@@ -51,12 +57,13 @@ const HomePage = ({ updateOrders }) => {
           handleAddToCart={handleAddToCart}
         />)}
       </CardList>}
-      <Pagination
+      {!error && recipes.length === 0 && <div className={styles.empty}>Рецепты не найдены</div>}
+      {!error && recipes.length > 0 && <Pagination
         count={recipesCount}
         limit={6}
         page={recipesPage}
         onPageChange={page => setRecipesPage(page)}
-      />
+      />}
     </Container>
   </Main>
 }

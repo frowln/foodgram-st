@@ -1,6 +1,5 @@
 class Api {
-  constructor(url, headers) {
-    this._url = url;
+  constructor(headers) {
     this._headers = headers;
   }
 
@@ -9,8 +8,26 @@ class Api {
       if (res.status === 204) {
         return resolve(res);
       }
-      const func = res.status < 400 ? resolve : reject;
-      res.json().then((data) => func(data));
+      
+      // Добавляем проверку на тип контента
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        res.json()
+          .then(data => {
+            if (res.status < 400) {
+              resolve(data);
+            } else {
+              reject(data);
+            }
+          })
+          .catch(err => reject(err));
+      } else {
+        if (res.status < 400) {
+          resolve(res);
+        } else {
+          reject(new Error(`HTTP error! status: ${res.status}`));
+        }
+      }
     });
   }
 
@@ -32,6 +49,14 @@ class Api {
   }
 
   signin({ email, password }) {
+    console.log('Sending signin request with data:', { email });
+    
+    // Создаем контроллер для отмены запроса по таймауту
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 10000); // 10 секунд таймаут
+
     return fetch("/api/auth/token/login/", {
       method: "POST",
       headers: this._headers,
@@ -39,7 +64,38 @@ class Api {
         email,
         password,
       }),
-    }).then(this.checkResponse);
+      signal: controller.signal
+    })
+    .then(res => {
+      clearTimeout(timeout);
+      console.log('Received response:', {
+        status: res.status,
+        statusText: res.statusText,
+        headers: Object.fromEntries(res.headers.entries())
+      });
+      return this.checkResponse(res);
+    })
+    .then(data => {
+      console.log('Parsed response data:', data);
+      if (data.auth_token) {
+        localStorage.setItem('token', data.auth_token);
+      }
+      return data;
+    })
+    .catch(err => {
+      clearTimeout(timeout);
+      console.error('Error during signin:', err);
+      if (err.name === 'AbortError') {
+        throw new Error('Запрос был отменен по таймауту. Пожалуйста, попробуйте снова.');
+      }
+      if (err.email) {
+        throw new Error(err.email);
+      }
+      if (err.password) {
+        throw new Error(err.password);
+      }
+      throw err;
+    });
   }
 
   signout() {
@@ -64,7 +120,12 @@ class Api {
         first_name,
         last_name,
       }),
-    }).then(this.checkResponse);
+    })
+    .then(this.checkResponse)
+    .catch(err => {
+      console.error('Error during signup:', err);
+      throw err;
+    });
   }
 
   getUserData() {
@@ -147,7 +208,12 @@ class Api {
           ...authorization,
         },
       }
-    ).then(this.checkResponse);
+    )
+    .then(this.checkResponse)
+    .catch(err => {
+      console.error('Error fetching recipes:', err);
+      throw err;
+    });
   }
 
   getRecipe({ recipe_id }) {
@@ -358,6 +424,6 @@ class Api {
   }
 }
 
-export default new Api(process.env.API_URL || "http://localhost", {
-  "content-type": "application/json",
+export default new Api({
+  'content-type': 'application/json'
 });
